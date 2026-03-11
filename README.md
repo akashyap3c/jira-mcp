@@ -144,28 +144,6 @@ jira-mcp/
 
 ---
 
-## Pushing to your repo
-
-If you cloned from elsewhere or started locally, add your repo and push:
-
-```bash
-git remote add origin git@github.com:akashyap3c/jira-mcp.git
-git add .
-git commit -m "Initial commit: Jira MCP server with 22 tools"
-git branch -M main
-git push -u origin main
-```
-
-To push updates later:
-
-```bash
-git add .
-git commit -m "Your message"
-git push
-```
-
----
-
 ## License
 
 MIT
