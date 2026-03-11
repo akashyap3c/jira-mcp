@@ -137,23 +137,9 @@ jira-mcp/
 │       ├── get-sprint-issues.js
 │       ├── move-to-sprint.js
 │       └── move-to-backlog.js
-├── tray/                  # Optional: system tray toggle for Jira MCP in Cursor
-│   ├── jira_tray.py
-│   └── install.sh
 ├── .env.example
 ├── package.json
 └── README.md
-```
-
----
-
-## Optional: system tray toggle (Linux)
-
-To enable/disable the Jira MCP server in Cursor from a system tray icon:
-
-```bash
-bash tray/install.sh
-python3 tray/jira_tray.py   # or let it autostart at login
 ```
 
 ---
