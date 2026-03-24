@@ -75,6 +75,15 @@ Add the Jira MCP server in Cursor:
 
 Restart Cursor (or reload MCP) so it picks up the server.
 
+Optional: add `JIRA_MCP_HTTP_READ_ONLY=true` or `JIRA_MCP_MAX_RESPONSE_CHARS` to the same `env` block if you use the generic REST tools (see [docs/API-REFERENCE.md](docs/API-REFERENCE.md)).
+
+---
+
+## API reference (PM / full REST surface)
+
+- **[docs/API-REFERENCE.md](docs/API-REFERENCE.md)** — links to official Swagger, optional env vars, and how curated tools map to PM workflows.
+- **`jira_platform_request`** / **`jira_agile_request`** — call any documented Platform or Agile endpoint (with path safety and optional read-only mode).
+
 ---
 
 ## Available tools
@@ -103,6 +112,20 @@ Restart Cursor (or reload MCP) so it picks up the server.
 | `get_sprint_issues` | Get issues in a sprint |
 | `move_to_sprint` | Move issues into a sprint (by sprintId or sprintName + boardId) |
 | `move_to_backlog` | Move issues from a sprint back to the backlog |
+| `get_sprint` | Sprint metadata by ID (dates, state, goal) |
+| `get_board_backlog` | Board backlog issues (optional JQL) |
+| `get_board_issues` | Board-scoped issues (optional JQL) |
+| `list_board_reports` | Report types available for a board |
+| `aggregate_worklogs` | Sum time logged by user across issues from JQL (capped) |
+| `list_board_epics` | Epics on a board |
+| `get_epic_issues` | Issues for an epic on a board |
+| `get_issues_without_epic` | Board issues not under any epic |
+| `list_fields` | All fields (find story points custom field ids) |
+| `list_filters` | Search saved filters |
+| `get_filter` | Get filter details and JQL by ID |
+| `sprint_metrics` | Derived counts / story points by status category for a sprint |
+| `jira_platform_request` | Low-level `GET/POST/...` under `/rest/api/3` |
+| `jira_agile_request` | Low-level `GET/POST/...` under `/rest/agile/1.0` |
 
 ---
 
@@ -136,7 +159,23 @@ jira-mcp/
 │       ├── get-all-sprints.js
 │       ├── get-sprint-issues.js
 │       ├── move-to-sprint.js
-│       └── move-to-backlog.js
+│       ├── move-to-backlog.js
+│       ├── get-sprint.js
+│       ├── get-board-backlog.js
+│       ├── get-board-issues.js
+│       ├── list-board-reports.js
+│       ├── aggregate-worklogs.js
+│       ├── list-board-epics.js
+│       ├── get-epic-issues.js
+│       ├── get-issues-without-epic.js
+│       ├── list-fields.js
+│       ├── list-filters.js
+│       ├── get-filter.js
+│       ├── sprint-metrics.js
+│       ├── jira-platform-request.js
+│       └── jira-agile-request.js
+├── docs/
+│   └── API-REFERENCE.md
 ├── .env.example
 ├── package.json
 └── README.md

@@ -202,11 +202,6 @@ async function moveToSprint(sprintId, issueKeys) {
 }
 
 /**
- * Resolve a sprint name to its numeric ID by paginating through all sprints
- * on the given board (searches active, future, and closed states).
- * Returns the sprint ID, or null if not found.
- */
-/**
  * Fetch every sprint on a board by paginating until isLast is true.
  * Optionally filter by state ('active', 'future', 'closed', or comma-joined combo).
  */
@@ -262,6 +257,124 @@ async function listBoards(projectKeyOrId, name, startAt = 0, maxResults = 50) {
   return res.data;
 }
 
+async function getSprint(sprintId) {
+  const { agile } = getClient();
+  const res = await agile.get(`/sprint/${sprintId}`);
+  return res.data;
+}
+
+async function getBoardBacklog(boardId, startAt = 0, maxResults = 50, jql, fields) {
+  const { agile } = getClient();
+  const params = { startAt, maxResults };
+  if (jql) params.jql = jql;
+  if (fields?.length) params.fields = fields.join(',');
+  const res = await agile.get(`/board/${boardId}/backlog`, { params });
+  return res.data;
+}
+
+async function getBoardIssues(boardId, startAt = 0, maxResults = 50, jql, fields) {
+  const { agile } = getClient();
+  const params = { startAt, maxResults };
+  if (jql) params.jql = jql;
+  if (fields?.length) params.fields = fields.join(',');
+  const res = await agile.get(`/board/${boardId}/issue`, { params });
+  return res.data;
+}
+
+async function listBoardReports(boardId) {
+  const { agile } = getClient();
+  const res = await agile.get(`/board/${boardId}/reports`);
+  return res.data;
+}
+
+async function listBoardEpics(boardId, startAt = 0, maxResults = 50) {
+  const { agile } = getClient();
+  const res = await agile.get(`/board/${boardId}/epic`, {
+    params: { startAt, maxResults },
+  });
+  return res.data;
+}
+
+async function getEpicIssues(boardId, epicId, startAt = 0, maxResults = 50, fields) {
+  const { agile } = getClient();
+  const params = { startAt, maxResults };
+  if (fields?.length) params.fields = fields.join(',');
+  const res = await agile.get(`/board/${boardId}/epic/${epicId}/issue`, { params });
+  return res.data;
+}
+
+async function getIssuesWithoutEpic(boardId, startAt = 0, maxResults = 50, fields) {
+  const { agile } = getClient();
+  const params = { startAt, maxResults };
+  if (fields?.length) params.fields = fields.join(',');
+  const res = await agile.get(`/board/${boardId}/epic/none/issue`, { params });
+  return res.data;
+}
+
+async function listFields() {
+  const { rest } = getClient();
+  const res = await rest.get('/field');
+  return res.data;
+}
+
+async function searchFilters(filterName, accountId, maxResults = 50, startAt = 0) {
+  const { rest } = getClient();
+  const params = { maxResults, startAt };
+  if (filterName) params.filterName = filterName;
+  if (accountId) params.accountId = accountId;
+  const res = await rest.get('/filter/search', { params });
+  return res.data;
+}
+
+async function getFilter(filterId, expand = ['jql']) {
+  const { rest } = getClient();
+  const res = await rest.get(`/filter/${filterId}`, {
+    params: expand.length ? { expand: expand.join(',') } : {},
+  });
+  return res.data;
+}
+
+function sanitizeApiPath(path) {
+  let p = String(path).trim();
+  if (!p) throw new Error('path is required');
+  if (p.includes('..')) throw new Error('path must not contain ..');
+  if (/^https?:\/\//i.test(p)) throw new Error('absolute URLs are not allowed');
+  if (!p.startsWith('/')) p = `/${p}`;
+  return p;
+}
+
+async function jiraPlatformRequest(method, path, query, jsonBody) {
+  const m = String(method).toUpperCase();
+  if (process.env.JIRA_MCP_HTTP_READ_ONLY === 'true' && m !== 'GET' && m !== 'HEAD') {
+    throw new Error('JIRA_MCP_HTTP_READ_ONLY=true: only GET and HEAD are allowed');
+  }
+  const rel = sanitizeApiPath(path);
+  const { rest } = getClient();
+  const res = await rest.request({
+    method: m,
+    url: rel,
+    params: query && typeof query === 'object' ? query : undefined,
+    data: jsonBody !== undefined && jsonBody !== null ? jsonBody : undefined,
+  });
+  return res.data;
+}
+
+async function jiraAgileRequest(method, path, query, jsonBody) {
+  const m = String(method).toUpperCase();
+  if (process.env.JIRA_MCP_HTTP_READ_ONLY === 'true' && m !== 'GET' && m !== 'HEAD') {
+    throw new Error('JIRA_MCP_HTTP_READ_ONLY=true: only GET and HEAD are allowed');
+  }
+  const rel = sanitizeApiPath(path);
+  const { agile } = getClient();
+  const res = await agile.request({
+    method: m,
+    url: rel,
+    params: query && typeof query === 'object' ? query : undefined,
+    data: jsonBody !== undefined && jsonBody !== null ? jsonBody : undefined,
+  });
+  return res.data;
+}
+
 export {
   getClient,
   extractJiraError,
@@ -288,4 +401,16 @@ export {
   deleteIssue,
   moveToBacklog,
   listBoards,
+  getSprint,
+  getBoardBacklog,
+  getBoardIssues,
+  listBoardReports,
+  listBoardEpics,
+  getEpicIssues,
+  getIssuesWithoutEpic,
+  listFields,
+  searchFilters,
+  getFilter,
+  jiraPlatformRequest,
+  jiraAgileRequest,
 };

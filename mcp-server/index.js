@@ -24,6 +24,20 @@ import { registerSearchUsers } from './tools/search-users.js';
 import { registerDeleteIssue } from './tools/delete-issue.js';
 import { registerMoveToBacklog } from './tools/move-to-backlog.js';
 import { registerListBoards } from './tools/list-boards.js';
+import { registerGetSprint } from './tools/get-sprint.js';
+import { registerGetBoardBacklog } from './tools/get-board-backlog.js';
+import { registerGetBoardIssues } from './tools/get-board-issues.js';
+import { registerListBoardReports } from './tools/list-board-reports.js';
+import { registerAggregateWorklogs } from './tools/aggregate-worklogs.js';
+import { registerListBoardEpics } from './tools/list-board-epics.js';
+import { registerGetEpicIssues } from './tools/get-epic-issues.js';
+import { registerGetIssuesWithoutEpic } from './tools/get-issues-without-epic.js';
+import { registerListFields } from './tools/list-fields.js';
+import { registerListFilters } from './tools/list-filters.js';
+import { registerGetFilter } from './tools/get-filter.js';
+import { registerSprintMetrics } from './tools/sprint-metrics.js';
+import { registerJiraPlatformRequest } from './tools/jira-platform-request.js';
+import { registerJiraAgileRequest } from './tools/jira-agile-request.js';
 
 const server = new McpServer({
   name: 'jira',
@@ -54,6 +68,20 @@ registerSearchUsers(server);
 registerDeleteIssue(server);
 registerMoveToBacklog(server);
 registerListBoards(server);
+registerGetSprint(server);
+registerGetBoardBacklog(server);
+registerGetBoardIssues(server);
+registerListBoardReports(server);
+registerAggregateWorklogs(server);
+registerListBoardEpics(server);
+registerGetEpicIssues(server);
+registerGetIssuesWithoutEpic(server);
+registerListFields(server);
+registerListFilters(server);
+registerGetFilter(server);
+registerSprintMetrics(server);
+registerJiraPlatformRequest(server);
+registerJiraAgileRequest(server);
 
 // Start server on stdio
 const transport = new StdioServerTransport();

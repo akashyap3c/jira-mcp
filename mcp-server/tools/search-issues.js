@@ -5,7 +5,7 @@ import { formatIssueTable } from '../formatters.js';
 export function registerSearchIssues(server) {
   server.tool(
     'search_issues',
-    'Search JIRA issues using JQL',
+    'Search JIRA issues using JQL. For PM/time views you can request fields like timetracking, aggregatetimespent, aggregatetimeoriginalestimate, parent, subtasks, labels, duedate, worklog (capped per issue). Use list_fields to find story points custom field ids.',
     {
       jql: z.string().describe('JQL query string, e.g. "project = PROJ AND status = Open"'),
       fields: z
