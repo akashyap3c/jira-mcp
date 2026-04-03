@@ -135,7 +135,7 @@ app.post('/mcp', async (req, res) => {
       // New session — credentials required on first request
       creds = extractCredentials(req);
       if (!creds) {
-        res.status(401).json({
+        res.status(400).json({
           jsonrpc: '2.0',
           error: {
             code: -32000,
@@ -212,6 +212,11 @@ app.delete('/mcp', async (req, res) => {
     return;
   }
   await sessions[sessionId].transport.handleRequest(req, res);
+});
+
+// Catch-all: return JSON 404 for unknown routes (prevents HTML responses that break MCP clients)
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 const PORT = process.env.PORT || 3000;
