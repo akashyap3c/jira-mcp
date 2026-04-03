@@ -1,4 +1,11 @@
 import axios from 'axios';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// Per-request credential store (used in HTTP mode)
+const credentialStore = new AsyncLocalStorage();
+
+// Cache HTTP-mode clients by key to avoid recreating on every request
+const clientCache = new Map();
 
 function validateEnv() {
   const required = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'];
@@ -11,37 +18,48 @@ function validateEnv() {
   }
 }
 
-function createClient() {
-  validateEnv();
+function createClientFromCreds(baseUrl, email, token) {
+  const baseURL = baseUrl.replace(/\/+$/, '');
+  const auth = { username: email, password: token };
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
-  const baseURL = process.env.JIRA_BASE_URL.replace(/\/+$/, '');
-  const auth = {
-    username: process.env.JIRA_EMAIL,
-    password: process.env.JIRA_API_TOKEN,
-  };
-
-  const rest = axios.create({
-    baseURL: `${baseURL}/rest/api/3`,
-    auth,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-  });
-
-  const agile = axios.create({
-    baseURL: `${baseURL}/rest/agile/1.0`,
-    auth,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-  });
+  const rest = axios.create({ baseURL: `${baseURL}/rest/api/3`, auth, headers });
+  const agile = axios.create({ baseURL: `${baseURL}/rest/agile/1.0`, auth, headers });
 
   return { rest, agile, baseURL };
 }
 
-let clientInstance = null;
+let envClientInstance = null;
 
 function getClient() {
-  if (!clientInstance) {
-    clientInstance = createClient();
+  // 1. Check AsyncLocalStorage for per-request credentials (HTTP mode)
+  const creds = credentialStore.getStore();
+  if (creds) {
+    const cacheKey = `${creds.baseUrl}|${creds.email}`;
+    if (!clientCache.has(cacheKey)) {
+      clientCache.set(cacheKey, createClientFromCreds(creds.baseUrl, creds.email, creds.token));
+    }
+    return clientCache.get(cacheKey);
   }
-  return clientInstance;
+
+  // 2. Fall back to env vars (stdio mode)
+  if (!envClientInstance) {
+    validateEnv();
+    envClientInstance = createClientFromCreds(
+      process.env.JIRA_BASE_URL,
+      process.env.JIRA_EMAIL,
+      process.env.JIRA_API_TOKEN,
+    );
+  }
+  return envClientInstance;
+}
+
+/**
+ * Run a function with per-request Jira credentials.
+ * Used by the HTTP transport to inject credentials from request headers.
+ */
+function runWithCredentials(creds, fn) {
+  return credentialStore.run(creds, fn);
 }
 
 /** Extract a human-readable error message from a JIRA API error response. */
@@ -377,6 +395,7 @@ async function jiraAgileRequest(method, path, query, jsonBody) {
 
 export {
   getClient,
+  runWithCredentials,
   extractJiraError,
   getIssue,
   searchIssues,

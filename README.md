@@ -87,14 +87,10 @@ Instead of running the server locally, you can deploy it once and connect from a
 
 1. Push your repo to GitHub
 2. Go to [railway.app](https://railway.app), create a new project → **Deploy from GitHub repo**
-3. Add these environment variables in the Railway dashboard:
-   ```
-   JIRA_BASE_URL=https://your-domain.atlassian.net
-   JIRA_EMAIL=your-email@example.com
-   JIRA_API_TOKEN=your-api-token-here
-   PORT=3000
-   ```
+3. Set only `PORT=3000` as an environment variable — **no Jira credentials needed on the server**
 4. Railway will auto-detect the `Dockerfile` and deploy. You'll get a URL like `https://jira-mcp-production-xxxx.up.railway.app`
+
+> **Each user provides their own Jira credentials** via request headers. The server stores nothing — it's safe to share with teammates.
 
 ### 2. Connect from Claude Code
 
@@ -105,7 +101,12 @@ Add to `~/.claude/settings.json` (works on any machine):
   "mcpServers": {
     "jira": {
       "type": "streamable-http",
-      "url": "https://your-app.up.railway.app/mcp"
+      "url": "https://your-app.up.railway.app/mcp",
+      "headers": {
+        "JIRA_BASE_URL": "https://your-domain.atlassian.net",
+        "JIRA_EMAIL": "your-email@example.com",
+        "JIRA_API_TOKEN": "your-api-token"
+      }
     }
   }
 }
@@ -120,7 +121,12 @@ Add to `~/.cursor/mcp.json`:
   "mcpServers": {
     "jira": {
       "type": "streamable-http",
-      "url": "https://your-app.up.railway.app/mcp"
+      "url": "https://your-app.up.railway.app/mcp",
+      "headers": {
+        "JIRA_BASE_URL": "https://your-domain.atlassian.net",
+        "JIRA_EMAIL": "your-email@example.com",
+        "JIRA_API_TOKEN": "your-api-token"
+      }
     }
   }
 }

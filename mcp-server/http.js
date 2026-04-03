@@ -4,6 +4,7 @@ import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { runWithCredentials } from './jira-client.js';
 
 import { registerListProjects } from './tools/list-projects.js';
 import { registerGetIssue } from './tools/get-issue.js';
@@ -92,8 +93,27 @@ function createServer() {
 const app = express();
 app.use(express.json());
 
-// Store active transports by session ID
-const transports = {};
+// Store active transports and their credentials by session ID
+const sessions = {};
+
+/**
+ * Extract Jira credentials from request headers.
+ * Each user passes their own creds — the server stores nothing.
+ *
+ * Headers (case-insensitive):
+ *   JIRA_BASE_URL:  https://yourorg.atlassian.net
+ *   JIRA_EMAIL:     user@example.com
+ *   JIRA_API_TOKEN: ATATT3x...
+ */
+function extractCredentials(req) {
+  const baseUrl = req.headers['jira_base_url'];
+  const email = req.headers['jira_email'];
+  const token = req.headers['jira_api_token'];
+  if (baseUrl && email && token) {
+    return { baseUrl, email, token };
+  }
+  return null;
+}
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -106,27 +126,48 @@ app.post('/mcp', async (req, res) => {
 
   try {
     let transport;
+    let creds;
 
-    if (sessionId && transports[sessionId]) {
-      transport = transports[sessionId];
+    if (sessionId && sessions[sessionId]) {
+      transport = sessions[sessionId].transport;
+      creds = sessions[sessionId].creds;
     } else if (!sessionId && isInitializeRequest(req.body)) {
+      // New session — credentials required on first request
+      creds = extractCredentials(req);
+      if (!creds) {
+        res.status(401).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message:
+              'Missing Jira credentials. Set headers: JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN',
+          },
+          id: null,
+        });
+        return;
+      }
+
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => {
-          transports[id] = transport;
+          sessions[id] = { transport, creds };
         },
       });
 
       transport.onclose = () => {
         const sid = transport.sessionId;
-        if (sid && transports[sid]) {
-          delete transports[sid];
+        if (sid && sessions[sid]) {
+          delete sessions[sid];
         }
       };
 
       const server = createServer();
       await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+
+      // Run with the user's credentials so tool handlers can access Jira
+      await runWithCredentials(creds, () =>
+        transport.handleRequest(req, res, req.body),
+      );
       return;
     } else {
       res.status(400).json({
@@ -137,7 +178,9 @@ app.post('/mcp', async (req, res) => {
       return;
     }
 
-    await transport.handleRequest(req, res, req.body);
+    await runWithCredentials(creds, () =>
+      transport.handleRequest(req, res, req.body),
+    );
   } catch (error) {
     console.error('Error handling MCP request:', error);
     if (!res.headersSent) {
@@ -153,35 +196,37 @@ app.post('/mcp', async (req, res) => {
 // MCP GET endpoint (SSE stream)
 app.get('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
-  if (!sessionId || !transports[sessionId]) {
+  if (!sessionId || !sessions[sessionId]) {
     res.status(400).send('Invalid or missing session ID');
     return;
   }
-  await transports[sessionId].handleRequest(req, res);
+  const { transport, creds } = sessions[sessionId];
+  await runWithCredentials(creds, () => transport.handleRequest(req, res));
 });
 
 // MCP DELETE endpoint (session termination)
 app.delete('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
-  if (!sessionId || !transports[sessionId]) {
+  if (!sessionId || !sessions[sessionId]) {
     res.status(400).send('Invalid or missing session ID');
     return;
   }
-  await transports[sessionId].handleRequest(req, res);
+  await sessions[sessionId].transport.handleRequest(req, res);
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`JIRA MCP server (HTTP) listening on port ${PORT}`);
+  console.log('Each user provides their own Jira credentials via headers.');
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Shutting down...');
-  for (const sessionId in transports) {
+  for (const sessionId in sessions) {
     try {
-      await transports[sessionId].close();
+      await sessions[sessionId].transport.close();
     } catch (_) {}
   }
   process.exit(0);
