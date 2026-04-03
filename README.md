@@ -79,6 +79,70 @@ Optional: add `JIRA_MCP_HTTP_READ_ONLY=true` or `JIRA_MCP_MAX_RESPONSE_CHARS` to
 
 ---
 
+## Remote / Hosted Setup (use from any machine)
+
+Instead of running the server locally, you can deploy it once and connect from any laptop or desktop.
+
+### 1. Deploy to Railway (recommended)
+
+1. Push your repo to GitHub
+2. Go to [railway.app](https://railway.app), create a new project → **Deploy from GitHub repo**
+3. Add these environment variables in the Railway dashboard:
+   ```
+   JIRA_BASE_URL=https://your-domain.atlassian.net
+   JIRA_EMAIL=your-email@example.com
+   JIRA_API_TOKEN=your-api-token-here
+   PORT=3000
+   ```
+4. Railway will auto-detect the `Dockerfile` and deploy. You'll get a URL like `https://jira-mcp-production-xxxx.up.railway.app`
+
+### 2. Connect from Claude Code
+
+Add to `~/.claude/settings.json` (works on any machine):
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "type": "streamable-http",
+      "url": "https://your-app.up.railway.app/mcp"
+    }
+  }
+}
+```
+
+### 3. Connect from Cursor
+
+Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "jira": {
+      "type": "streamable-http",
+      "url": "https://your-app.up.railway.app/mcp"
+    }
+  }
+}
+```
+
+### Alternative platforms
+
+The included `Dockerfile` works on any platform:
+
+- **Render**: New Web Service → connect GitHub repo → it auto-detects the Dockerfile
+- **Fly.io**: `fly launch` from the repo directory
+- **Any VPS**: `docker build -t jira-mcp . && docker run -p 3000:3000 --env-file .env jira-mcp`
+
+### Local HTTP mode (for testing)
+
+```bash
+npm run start:http
+# Server runs on http://localhost:3000/mcp
+```
+
+---
+
 ## API reference (PM / full REST surface)
 
 - **[docs/API-REFERENCE.md](docs/API-REFERENCE.md)** — links to official Swagger, optional env vars, and how curated tools map to PM workflows.
@@ -133,8 +197,10 @@ Optional: add `JIRA_MCP_HTTP_READ_ONLY=true` or `JIRA_MCP_MAX_RESPONSE_CHARS` to
 
 ```
 jira-mcp/
+├── Dockerfile
 ├── mcp-server/
-│   ├── index.js           # Entry point (stdio transport)
+│   ├── index.js           # Entry point (stdio transport, local)
+│   ├── http.js            # Entry point (HTTP transport, remote)
 │   ├── jira-client.js     # Jira REST API (v3 + Agile 1.0)
 │   ├── formatters.js      # ADF/plain text, markdown tables
 │   └── tools/             # MCP tool handlers
