@@ -5,8 +5,9 @@
   "description": "Model Context Protocol (MCP) server for Atlassian Jira Cloud — manage projects, issues, sprints, and workflows directly from Claude Code",
   "main": "mcp-server/index.js",
   "scripts": {
-    "start": "node mcp-server/index.js",
+    "start": "node mcp-server/http.js",
     "start:http": "node mcp-server/http.js",
+    "start:stdio": "node mcp-server/index.js",
     "mcp": "node mcp-server/index.js",
     "test": "echo \"No test specified\" && exit 0"
   },
