@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: jira-mcp
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: .
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:http
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: JIRA_BASE_URL
+        sync: false
+      - key: JIRA_EMAIL
+        sync: false
+      - key: JIRA_API_TOKEN
+        sync: false
+      - key: JIRA_MCP_HTTP_READ_ONLY
+        sync: false
+      - key: JIRA_MCP_MAX_RESPONSE_CHARS
+        sync: false

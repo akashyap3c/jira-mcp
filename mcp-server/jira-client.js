@@ -26,13 +26,19 @@ function createClient() {
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   });
 
+  const restV2 = axios.create({
+    baseURL: `${baseURL}/rest/api/2`,
+    auth,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+
   const agile = axios.create({
     baseURL: `${baseURL}/rest/agile/1.0`,
     auth,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   });
 
-  return { rest, agile, baseURL };
+  return { rest, restV2, agile, baseURL };
 }
 
 let clientInstance = null;
@@ -102,6 +108,34 @@ async function addComment(issueKey, bodyAdf) {
   const { rest } = getClient();
   const res = await rest.post(`/issue/${issueKey}/comment`, { body: bodyAdf });
   return res.data;
+}
+
+/**
+ * Post a comment using the v2 REST endpoint, which accepts wiki markup in `body`.
+ * Use this when you need to embed inline images via `!filename.png!` markup —
+ * the v3 ADF endpoint requires media-services UUIDs that the attachment API
+ * does not expose, so wiki markup is the only way to render attachments inline.
+ */
+async function addCommentV2(issueKey, bodyText) {
+  const { restV2 } = getClient();
+  const res = await restV2.post(`/issue/${issueKey}/comment`, { body: bodyText });
+  return res.data;
+}
+
+async function addAttachment(issueKey, buffer, filename, mimeType) {
+  const { rest } = getClient();
+  const form = new FormData();
+  const blob = new Blob([buffer], { type: mimeType || 'application/octet-stream' });
+  form.append('file', blob, filename);
+  const res = await rest.post(`/issue/${issueKey}/attachments`, form, {
+    headers: {
+      'X-Atlassian-Token': 'no-check',
+      // Let axios/fetch set the multipart boundary automatically
+      'Content-Type': undefined,
+    },
+  });
+  const data = Array.isArray(res.data) ? res.data : [res.data];
+  return data[0];
 }
 
 async function getComments(issueKey, startAt = 0, maxResults = 50) {
@@ -384,6 +418,8 @@ export {
   updateIssue,
   transitionIssue,
   addComment,
+  addCommentV2,
+  addAttachment,
   getComments,
   listProjects,
   getTransitions,

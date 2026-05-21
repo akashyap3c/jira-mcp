@@ -46,6 +46,44 @@ export function plainTextToAdf(text) {
 }
 
 /**
+ * Build an ADF document from plain text plus a list of attachments.
+ * Attachments are rendered as a trailing paragraph of hyperlinked filenames.
+ * Jira's REST v3 comment endpoint rejects ADF `media` nodes that reference
+ * attachment IDs (it expects media-services UUIDs), so we don't embed inline.
+ * Each attachment may provide { id, filename, contentUrl, alt }.
+ */
+export function buildCommentAdf(text, attachments = []) {
+  const content = [];
+  if (text && text.length > 0) {
+    for (const line of text.split('\n')) {
+      content.push({
+        type: 'paragraph',
+        content: line ? [{ type: 'text', text: line }] : [],
+      });
+    }
+  }
+  if (attachments.length > 0) {
+    const inlines = [{ type: 'text', text: 'Attached: ' }];
+    attachments.forEach((att, i) => {
+      const label = att.alt || att.filename || `attachment-${att.id}`;
+      const linkNode = { type: 'text', text: label };
+      if (att.contentUrl) {
+        linkNode.marks = [{ type: 'link', attrs: { href: att.contentUrl } }];
+      }
+      inlines.push(linkNode);
+      if (i < attachments.length - 1) {
+        inlines.push({ type: 'text', text: ', ' });
+      }
+    });
+    content.push({ type: 'paragraph', content: inlines });
+  }
+  if (content.length === 0) {
+    content.push({ type: 'paragraph', content: [] });
+  }
+  return { type: 'doc', version: 1, content };
+}
+
+/**
  * Format a single issue into a Markdown detail view.
  */
 export function formatIssueDetail(issue, baseURL) {
