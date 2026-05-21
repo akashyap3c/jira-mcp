@@ -1,24 +1,37 @@
 import axios from 'axios';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-function validateEnv() {
-  const required = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN'];
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(', ')}. ` +
-        'Set them in .env or pass via MCP server config.'
-    );
-  }
+const credsStore = new AsyncLocalStorage();
+
+function runWithCreds(creds, fn) {
+  return credsStore.run(creds, fn);
+}
+
+function resolveCreds() {
+  const ctx = credsStore.getStore();
+  return {
+    baseURL: ctx?.baseURL ?? process.env.JIRA_BASE_URL,
+    email: ctx?.email ?? process.env.JIRA_EMAIL,
+    token: ctx?.token ?? process.env.JIRA_API_TOKEN,
+    readOnly: ctx?.readOnly ?? (process.env.JIRA_MCP_HTTP_READ_ONLY === 'true'),
+  };
 }
 
 function createClient() {
-  validateEnv();
+  const { baseURL: raw, email, token } = resolveCreds();
+  const missing = [];
+  if (!raw) missing.push('JIRA_BASE_URL');
+  if (!email) missing.push('JIRA_EMAIL');
+  if (!token) missing.push('JIRA_API_TOKEN');
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required Jira credentials: ${missing.join(', ')}. ` +
+        'Provide them via env vars (stdio mode) or X-Jira-Base-Url / X-Jira-Email / X-Jira-Token request headers (HTTP mode).'
+    );
+  }
 
-  const baseURL = process.env.JIRA_BASE_URL.replace(/\/+$/, '');
-  const auth = {
-    username: process.env.JIRA_EMAIL,
-    password: process.env.JIRA_API_TOKEN,
-  };
+  const baseURL = raw.replace(/\/+$/, '');
+  const auth = { username: email, password: token };
 
   const rest = axios.create({
     baseURL: `${baseURL}/rest/api/3`,
@@ -41,13 +54,8 @@ function createClient() {
   return { rest, restV2, agile, baseURL };
 }
 
-let clientInstance = null;
-
 function getClient() {
-  if (!clientInstance) {
-    clientInstance = createClient();
-  }
-  return clientInstance;
+  return createClient();
 }
 
 /** Extract a human-readable error message from a JIRA API error response. */
@@ -379,8 +387,8 @@ function sanitizeApiPath(path) {
 
 async function jiraPlatformRequest(method, path, query, jsonBody) {
   const m = String(method).toUpperCase();
-  if (process.env.JIRA_MCP_HTTP_READ_ONLY === 'true' && m !== 'GET' && m !== 'HEAD') {
-    throw new Error('JIRA_MCP_HTTP_READ_ONLY=true: only GET and HEAD are allowed');
+  if (resolveCreds().readOnly && m !== 'GET' && m !== 'HEAD') {
+    throw new Error('Jira MCP read-only mode: only GET and HEAD are allowed');
   }
   const rel = sanitizeApiPath(path);
   const { rest } = getClient();
@@ -395,8 +403,8 @@ async function jiraPlatformRequest(method, path, query, jsonBody) {
 
 async function jiraAgileRequest(method, path, query, jsonBody) {
   const m = String(method).toUpperCase();
-  if (process.env.JIRA_MCP_HTTP_READ_ONLY === 'true' && m !== 'GET' && m !== 'HEAD') {
-    throw new Error('JIRA_MCP_HTTP_READ_ONLY=true: only GET and HEAD are allowed');
+  if (resolveCreds().readOnly && m !== 'GET' && m !== 'HEAD') {
+    throw new Error('Jira MCP read-only mode: only GET and HEAD are allowed');
   }
   const rel = sanitizeApiPath(path);
   const { agile } = getClient();
@@ -411,6 +419,7 @@ async function jiraAgileRequest(method, path, query, jsonBody) {
 
 export {
   getClient,
+  runWithCreds,
   extractJiraError,
   getIssue,
   searchIssues,

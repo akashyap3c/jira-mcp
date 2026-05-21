@@ -4,6 +4,7 @@ import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { runWithCreds } from './jira-client.js';
 
 import { registerListProjects } from './tools/list-projects.js';
 import { registerGetIssue } from './tools/get-issue.js';
@@ -90,10 +91,24 @@ function createServer() {
 }
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
 // Store active transports by session ID
 const transports = {};
+
+function extractCreds(req) {
+  const h = req.headers;
+  const baseURL = h['x-jira-base-url'];
+  const email = h['x-jira-email'];
+  const token = h['x-jira-token'] || h['x-jira-api-token'];
+  const readOnlyHeader = h['x-jira-read-only'];
+  const creds = {};
+  if (typeof baseURL === 'string' && baseURL.trim()) creds.baseURL = baseURL.trim();
+  if (typeof email === 'string' && email.trim()) creds.email = email.trim();
+  if (typeof token === 'string' && token.trim()) creds.token = token.trim();
+  if (typeof readOnlyHeader === 'string') creds.readOnly = readOnlyHeader.toLowerCase() === 'true';
+  return creds;
+}
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -103,43 +118,46 @@ app.get('/health', (_req, res) => {
 // MCP POST endpoint
 app.post('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'];
+  const creds = extractCreds(req);
 
   try {
-    let transport;
+    await runWithCreds(creds, async () => {
+      let transport;
 
-    if (sessionId && transports[sessionId]) {
-      transport = transports[sessionId];
-    } else if (!sessionId && isInitializeRequest(req.body)) {
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (id) => {
-          transports[id] = transport;
-        },
-      });
+      if (sessionId && transports[sessionId]) {
+        transport = transports[sessionId];
+      } else if (!sessionId && isInitializeRequest(req.body)) {
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (id) => {
+            transports[id] = transport;
+          },
+        });
 
-      transport.onclose = () => {
-        const sid = transport.sessionId;
-        if (sid && transports[sid]) {
-          delete transports[sid];
-        }
-      };
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid && transports[sid]) {
+            delete transports[sid];
+          }
+        };
 
-      const server = createServer();
-      await server.connect(transport);
+        const server = createServer();
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+        return;
+      } else {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Bad Request: No valid session ID' },
+          id: null,
+        });
+        return;
+      }
+
       await transport.handleRequest(req, res, req.body);
-      return;
-    } else {
-      res.status(400).json({
-        jsonrpc: '2.0',
-        error: { code: -32000, message: 'Bad Request: No valid session ID' },
-        id: null,
-      });
-      return;
-    }
-
-    await transport.handleRequest(req, res, req.body);
+    });
   } catch (error) {
-    console.error('Error handling MCP request:', error);
+    console.error('Error handling MCP request:', error?.message || error);
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: '2.0',
